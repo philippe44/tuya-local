@@ -10,6 +10,8 @@ from homeassistant.components.sensor import (
     SensorEntity,
 )
 
+from homeassistant.helpers.restore_state import RestoreEntity
+
 from .device import TuyaLocalDevice
 from .entity import TuyaLocalEntity, unit_from_ascii
 from .helpers.config import async_tuya_setup_platform
@@ -29,7 +31,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     )
 
 
-class TuyaLocalSensor(TuyaLocalEntity, SensorEntity):
+class TuyaLocalSensor(TuyaLocalEntity, SensorEntity, RestoreEntity):
     """Representation of a Tuya Sensor"""
 
     def __init__(self, device: TuyaLocalDevice, config: TuyaEntityConfig):
@@ -40,6 +42,7 @@ class TuyaLocalSensor(TuyaLocalEntity, SensorEntity):
             config (TuyaEntityConfig): the configuration for this entity
         """
         super().__init__()
+        self._accumulated_value = 0.0
         dps_map = self._init_begin(device, config)
         self._sensor_dps = dps_map.pop("sensor", None)
         if self._sensor_dps is None:
@@ -47,6 +50,26 @@ class TuyaLocalSensor(TuyaLocalEntity, SensorEntity):
         self._unit_dps = dps_map.pop("unit", None)
 
         self._init_end(dps_map)
+
+    async def async_added_to_hass(self):
+        if self._sensor_dps.accumulate:
+            state = await self.async_get_last_state()
+            if state:
+                try:
+                    self._accumulated_value = float(state.state)
+                except (TypeError, ValueError):
+                    pass
+        await super().async_added_to_hass()
+
+    def on_receive(self, dps, full_poll):
+        if (
+            self._sensor_dps.accumulate
+            and not full_poll
+            and self._sensor_dps.id in dps
+        ):
+            delta = self._sensor_dps.get_value(self._device)
+            if isinstance(delta, (int, float)):
+                self._accumulated_value += delta
 
     @property
     def device_class(self):
@@ -72,7 +95,9 @@ class TuyaLocalSensor(TuyaLocalEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Return the value reported by the sensor"""
+        """Return the value (or accumulated) reported by the sensor"""
+        if self._sensor_dps.accumulate:
+            return self._accumulated_value
         return self._sensor_dps.get_value(self._device)
 
     @property

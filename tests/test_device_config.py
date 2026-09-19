@@ -125,6 +125,7 @@ DP_SCHEMA = vol.Schema(
         vol.Optional("mask"): str,
         vol.Optional("endianness"): vol.In(["little"]),
         vol.Optional("mask_signed"): True,
+        vol.Optional("accumulate"): True,
     }
 )
 ENTITY_SCHEMA = vol.Schema(

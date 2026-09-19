@@ -439,6 +439,10 @@ class TuyaDpsConfig:
         return self._config.get("persist", True)
 
     @property
+    def accumulate(self):
+        return self._config.get("accumulate", False)
+
+    @property
     def force(self):
         return self._config.get("force", False)
 

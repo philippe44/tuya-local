@@ -97,8 +97,9 @@ entities:
         type: integer
         name: sensor
         optional: true
+        accumulate: true
         unit: kWh
-        class: measurement
+        class: total_increasing
         mapping:
           - dps_val: null
           - scale: 1000
