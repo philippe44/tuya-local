@@ -91,13 +91,13 @@ entities:
   - entity: sensor
     name: Energy
     category: diagnostic
-    hidden: true
+    hidden: false
     dps:
       - id: 17
         type: integer
         name: sensor
         optional: true
-        accumulate: true
+        delta: accumulate
         unit: kWh
         class: total_increasing
         mapping:
@@ -107,6 +107,25 @@ entities:
         type: integer
         name: calibration
         optional: true
+  - entity: sensor
+    name: Energy (delta)
+    category: diagnostic
+    hidden: true
+    dps:
+      - id: 17
+        type: integer
+        name: sensor
+        optional: true
+        delta: event
+        unit: kWh
+        class: measurement
+        mapping:
+          - dps_val: null
+          - scale: 1000
+      - id: 25
+        type: integer
+        name: calibration
+        optional: true        
   - entity: binary_sensor
     class: problem
     category: diagnostic

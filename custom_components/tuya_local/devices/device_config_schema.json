@@ -178,10 +178,11 @@
                                     "type": "boolean",
                                     "description": "false to clear the last known value of this dp before each full poll. Only needed for dps that are expected to disappear (become null), but not required to be specified for events as they are automatically only fired when explicitly received. Default is true, which should not be specified explicitly to avoid clutter."
                                 },
-				                "accumulate": {
-                                    "type": "boolean",
-                                    "description": "true if values received outside full polls are deltas to accumulate."
-                                },
+				                "delta": {
+									"type": "string",
+									"enum": ["accumulate", "event"],
+									"description": "How delta values are handled: accumulate locally or expose every received delta as an event."
+								},
                                 "format": {
                                     "type": "array",
                                     "description": "The format to extract multiple numeric fields from base64 or hex DP values. Used only for rgbhsv fields of lights currently.",

@@ -10,7 +10,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
 )
 
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.components.sensor import RestoreSensor
 
 from .device import TuyaLocalDevice
 from .entity import TuyaLocalEntity, unit_from_ascii
@@ -18,7 +18,6 @@ from .helpers.config import async_tuya_setup_platform
 from .helpers.device_config import TuyaEntityConfig
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     config = {**config_entry.data, **config_entry.options}
@@ -31,7 +30,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     )
 
 
-class TuyaLocalSensor(TuyaLocalEntity, SensorEntity, RestoreEntity):
+class TuyaLocalSensor(TuyaLocalEntity, RestoreSensor):
     """Representation of a Tuya Sensor"""
 
     def __init__(self, device: TuyaLocalDevice, config: TuyaEntityConfig):
@@ -43,6 +42,7 @@ class TuyaLocalSensor(TuyaLocalEntity, SensorEntity, RestoreEntity):
         """
         super().__init__()
         self._accumulated_value = 0.0
+        self._event_seq = 0
         dps_map = self._init_begin(device, config)
         self._sensor_dps = dps_map.pop("sensor", None)
         if self._sensor_dps is None:
@@ -52,24 +52,24 @@ class TuyaLocalSensor(TuyaLocalEntity, SensorEntity, RestoreEntity):
         self._init_end(dps_map)
 
     async def async_added_to_hass(self):
-        if self._sensor_dps.accumulate:
-            state = await self.async_get_last_state()
-            if state:
-                try:
-                    self._accumulated_value = float(state.state)
-                except (TypeError, ValueError):
-                    pass
-        await super().async_added_to_hass()
+        if self._sensor_dps.delta == "accumulate":
+            data = await self.async_get_last_sensor_data()
+            if data is not None and data.native_value is not None:
+                self._accumulated_value = data.native_value
 
+        await super().async_added_to_hass()
+    
     def on_receive(self, dps, full_poll):
         if (
-            self._sensor_dps.accumulate
+            self._sensor_dps.id in dps
             and not full_poll
-            and self._sensor_dps.id in dps
         ):
-            delta = self._sensor_dps.get_value(self._device)
-            if isinstance(delta, (int, float)):
-                self._accumulated_value += delta
+            if self._sensor_dps.delta == "accumulate":
+                value = self._sensor_dps.get_value(self._device)
+                if isinstance(value, (int, float)):
+                    self._accumulated_value += value
+            elif self._sensor_dps.delta == "event":
+                self._event_seq += 1
 
     @property
     def device_class(self):
@@ -96,7 +96,7 @@ class TuyaLocalSensor(TuyaLocalEntity, SensorEntity, RestoreEntity):
     @property
     def native_value(self):
         """Return the value (or accumulated) reported by the sensor"""
-        if self._sensor_dps.accumulate:
+        if self._sensor_dps.delta == "accumulate":
             return self._accumulated_value
         return self._sensor_dps.get_value(self._device)
 
@@ -136,3 +136,12 @@ class TuyaLocalSensor(TuyaLocalEntity, SensorEntity, RestoreEntity):
             for val in values:
                 if isinstance(val, str):
                     return values
+                    
+    @property
+    def extra_state_attributes(self):
+        attrs = super().extra_state_attributes or {}
+
+        if self._sensor_dps.delta == "event":
+            attrs["event_seq"] = self._event_seq
+
+        return attrs                    
